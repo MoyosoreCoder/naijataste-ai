@@ -11,8 +11,8 @@ router = APIRouter()
 
 # You can switch between OpenAI or Groq here
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("BASE_URL")  # optional for Groq
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1"
 )
 
 
@@ -85,7 +85,7 @@ Format:
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("MODEL", "gpt-4o-mini"),
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": "You are a structured recommendation engine."},
                 {"role": "user", "content": prompt}
