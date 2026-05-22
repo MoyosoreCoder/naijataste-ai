@@ -79,7 +79,7 @@ Format:
       "description": ""
     }}
   ],
-  "ai_explanation": ""
+  "ai_explanation": "",
   "confidence": 0.87
 }}
 """
