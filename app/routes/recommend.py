@@ -80,6 +80,7 @@ Format:
     }}
   ],
   "ai_explanation": ""
+  "confidence": 0.87
 }}
 """
 
@@ -91,6 +92,7 @@ Format:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7
+
         )
 
         content = response.choices[0].message.content.strip()
