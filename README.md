@@ -129,3 +129,13 @@ Notes
 Uses fallback logic when LLM API is unavailable
 Combines dataset-driven logic with rule-based reasoning
 Designed as a structured AI system for food behavior modeling
+
+## Docker Deployment
+
+The application is fully containerized.
+
+Build:
+docker build -t naijataste-ai .
+
+Run:
+docker run -p 8000:8000 naijataste-ai
