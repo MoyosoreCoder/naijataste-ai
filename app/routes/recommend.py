@@ -1,15 +1,19 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-import os
-import json
 from openai import OpenAI
 from dotenv import load_dotenv
+import os
+import json
 
 load_dotenv()
 
 router = APIRouter()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# You can switch between OpenAI or Groq here
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("BASE_URL")  # optional for Groq
+)
 
 
 class UserRequest(BaseModel):
@@ -18,20 +22,54 @@ class UserRequest(BaseModel):
     spice_level: str | None = None
 
 
+# -----------------------
+# SAFE FALLBACK FUNCTION
+# -----------------------
+def fallback_response(user: UserRequest):
+    return {
+        "status": "success",
+        "data": {
+            "reasoning": [
+                f"Mood = {user.mood}",
+                f"Budget = {user.budget}",
+                f"Spice preference = {user.spice_level}"
+            ],
+            "recommendations": [
+                {
+                    "food": "Jollof Rice",
+                    "category": "main",
+                    "description": "Classic Nigerian rice dish"
+                },
+                {
+                    "food": "Akara",
+                    "category": "breakfast",
+                    "description": "Fried bean cakes"
+                },
+                {
+                    "food": "Yam and Egg",
+                    "category": "breakfast",
+                    "description": "Fried yam with egg sauce"
+                }
+            ],
+            "ai_explanation": "Fallback mode activated due to service unavailability."
+        }
+    }
+
+
 @router.post("/recommend")
 def recommend(user: UserRequest):
 
     prompt = f"""
 You are a Nigerian food recommendation AI agent.
 
-User Profile:
+Return STRICT JSON ONLY.
+
+User:
 - Mood: {user.mood}
 - Budget: {user.budget}
-- Spice Level: {user.spice_level}
+- Spice: {user.spice_level}
 
-TASK:
-Return STRICT JSON only in this format:
-
+Format:
 {{
   "reasoning": ["..."],
   "recommendations": [
@@ -47,7 +85,7 @@ Return STRICT JSON only in this format:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("MODEL", "gpt-4o-mini"),
             messages=[
                 {"role": "system", "content": "You are a structured recommendation engine."},
                 {"role": "user", "content": prompt}
@@ -55,36 +93,10 @@ Return STRICT JSON only in this format:
             temperature=0.7
         )
 
-        content = response.choices[0].message.content
+        content = response.choices[0].message.content.strip()
 
-        # SAFE JSON PARSING
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            return {
-                "status": "success",
-                "data": {
-                    "reasoning": ["AI returned invalid JSON format"],
-                    "recommendations": [
-                        {
-                            "food": "Jollof Rice",
-                            "category": "main",
-                            "description": "Classic Nigerian rice dish"
-                        },
-                        {
-                            "food": "Akara",
-                            "category": "breakfast",
-                            "description": "Fried bean cakes"
-                        },
-                        {
-                            "food": "Yam and Egg",
-                            "category": "breakfast",
-                            "description": "Fried yam with egg sauce"
-                        }
-                    ],
-                    "ai_explanation": "Fallback used due to invalid AI response format."
-                }
-            }
+        # SAFE JSON PARSE
+        data = json.loads(content)
 
         return {
             "status": "success",
@@ -92,32 +104,5 @@ Return STRICT JSON only in this format:
         }
 
     except Exception:
-        # FINAL FALLBACK (CLEAN & SAFE)
-        return {
-            "status": "success",
-            "data": {
-                "reasoning": [
-                    f"Mood = {user.mood}",
-                    f"Budget = {user.budget}",
-                    f"Spice preference = {user.spice_level}"
-                ],
-                "recommendations": [
-                    {
-                        "food": "Jollof Rice",
-                        "category": "main",
-                        "description": "Classic Nigerian rice dish"
-                    },
-                    {
-                        "food": "Akara",
-                        "category": "breakfast",
-                        "description": "Fried bean cakes"
-                    },
-                    {
-                        "food": "Yam and Egg",
-                        "category": "breakfast",
-                        "description": "Fried yam with egg sauce"
-                    }
-                ],
-                "ai_explanation": "Fallback mode activated due to external service unavailability."
-            }
-        }
+        # NEVER expose raw error to user
+        return fallback_response(user)
