@@ -90,7 +90,5 @@ Return STRICT JSON only in this format:
                         "description": "Fried yam with egg sauce"
                     }
                 ],
-                "ai_explanation": "Fallback mode used due to LLM error or quota limit.",
-                "error": str(e)
             }
         }
