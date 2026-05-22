@@ -90,6 +90,7 @@ Response:
 }
 Get Recommendations
 POST /recommend
+This uses enum for ease
 
 Request:
 
@@ -126,7 +127,7 @@ Run with Docker
 docker build -t naijataste-ai .
 docker run -p 8000:8000 naijataste-ai
 Notes
-Uses fallback logic when LLM API is unavailable
+Implements intelligent fallback reasoning system to ensure consistent recommendations even without LLM availability.
 Combines dataset-driven logic with rule-based reasoning
 Designed as a structured AI system for food behavior modeling
 
