@@ -21,22 +21,19 @@ def generate_review(data: ReviewRequest):
     food = data.food.lower()
     experience = data.experience.lower()
 
-    budget = data.budget.lower() if data.budget else "medium"
-    personality = data.personality.lower() if data.personality else "regular"
+    budget = (data.budget or "medium").lower()
+    personality = (data.personality or "regular").lower()
 
     # =========================
-    # LOAD DATASET (SAFE USE)
+    # DATASET SAFE LOADING
     # =========================
     try:
         df = load_reviews()
-
-        # ❗ DO NOT inject raw text (prevents "tea problem")
         df = df.dropna(subset=["Text", "Score"])
 
         sample = df.sample(1).iloc[0]
         dataset_rating = int(sample["Score"])
 
-        # only use STYLE, not content
         style_phrases = [
             "very satisfying experience",
             "taste was quite impressive",
@@ -49,19 +46,21 @@ def generate_review(data: ReviewRequest):
 
     except Exception:
         dataset_rating = 4
-        dataset_style = ""
+        dataset_style = None
 
     # =========================
-    # BASE LOGIC
+    # SENTIMENT RULES
     # =========================
+    sentiment_positive = experience in ["nice", "good", "tasty", "delicious"]
+    sentiment_negative = experience in ["bad", "terrible", "cold", "burnt"]
+
     rating = dataset_rating
-    review = ""
 
-    if experience in ["bad", "terrible", "cold", "burnt"]:
+    if sentiment_negative:
         rating = 2
         review = f"The {food} was disappointing and did not meet expectations."
 
-    elif mood == "happy" and experience in ["nice", "good", "tasty", "delicious"]:
+    elif mood == "happy" and sentiment_positive:
         rating = 5
         review = f"The {food} was absolutely delicious and enjoyable."
 
@@ -73,7 +72,7 @@ def generate_review(data: ReviewRequest):
         review = f"The {food} was decent overall."
 
     # =========================
-    # CONTEXT BOOSTS
+    # CONTEXT ENHANCEMENT
     # =========================
     if budget == "low":
         review += " It was affordable and budget-friendly."
@@ -84,11 +83,11 @@ def generate_review(data: ReviewRequest):
     # =========================
     # SAFE DATASET STYLE INJECTION
     # =========================
-    if dataset_style:
+    if dataset_style and sentiment_positive:
         review += f" {dataset_style}."
 
     # =========================
-    # NAIJA FLAVOR
+    # NAIJA FLAVOR BOOST
     # =========================
     review += random.choice([
         " Omo, the flavor was actually impressive.",
