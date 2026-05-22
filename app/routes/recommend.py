@@ -57,14 +57,42 @@ Return STRICT JSON only in this format:
 
         content = response.choices[0].message.content
 
+        # SAFE JSON PARSING
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return {
+                "status": "success",
+                "data": {
+                    "reasoning": ["AI returned invalid JSON format"],
+                    "recommendations": [
+                        {
+                            "food": "Jollof Rice",
+                            "category": "main",
+                            "description": "Classic Nigerian rice dish"
+                        },
+                        {
+                            "food": "Akara",
+                            "category": "breakfast",
+                            "description": "Fried bean cakes"
+                        },
+                        {
+                            "food": "Yam and Egg",
+                            "category": "breakfast",
+                            "description": "Fried yam with egg sauce"
+                        }
+                    ],
+                    "ai_explanation": "Fallback used due to invalid AI response format."
+                }
+            }
+
         return {
             "status": "success",
-            "data": json.loads(content)  # convert to proper JSON
+            "data": data
         }
 
-    except Exception as e:
-
-        # 🔥 SAFE FALLBACK (IMPORTANT FOR HACKATHON)
+    except Exception:
+        # FINAL FALLBACK (CLEAN & SAFE)
         return {
             "status": "success",
             "data": {
@@ -90,5 +118,6 @@ Return STRICT JSON only in this format:
                         "description": "Fried yam with egg sauce"
                     }
                 ],
+                "ai_explanation": "Fallback mode activated due to external service unavailability."
             }
         }
