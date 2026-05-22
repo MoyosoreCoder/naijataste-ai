@@ -80,7 +80,6 @@ Format:
     }}
   ],
   "ai_explanation": "",
-  "confidence": 0.87
 }}
 """
 
