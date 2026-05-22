@@ -27,6 +27,23 @@ This project was built for the DSN x BCT LLM Agent Challenge.
 - Build a structured decision system for food preference modeling
 
 ---
+## Architecture Overview
+
+The system is structured into three layers:
+
+### API Layer
+FastAPI handles:
+- /review
+- /recommend
+
+### Logic Layer
+- Rule-based sentiment analysis
+- User preference modeling
+- Fallback logic for LLM failures
+
+### Data Layer
+- Amazon Reviews dataset used for behavioral simulation
+---
 
 ## Tech Stack
 
