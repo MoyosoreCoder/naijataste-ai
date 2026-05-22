@@ -1,30 +1,60 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+from enum import Enum
+from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import json
+import re
 
 load_dotenv()
 
 router = APIRouter()
 
-# You can switch between OpenAI or Groq here
+# Groq / OpenAI client
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
 )
 
+# -----------------------
+# ENUM DEFINITIONS
+# -----------------------
+
+class Mood(str, Enum):
+    happy = "happy"
+    sad = "sad"
+    neutral = "neutral"
+    excited = "excited"
+
+
+class Budget(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class SpiceLevel(str, Enum):
+    mild = "mild"
+    medium = "medium"
+    spicy = "spicy"
+
+
+# -----------------------
+# REQUEST MODEL
+# -----------------------
 
 class UserRequest(BaseModel):
-    mood: str
-    budget: str
-    spice_level: str | None = None
+    mood: Mood
+    budget: Budget
+    spice_level: Optional[SpiceLevel] = None
 
 
 # -----------------------
-# SAFE FALLBACK FUNCTION
+# FALLBACK
 # -----------------------
+
 def fallback_response(user: UserRequest):
     return {
         "status": "success",
@@ -41,14 +71,14 @@ def fallback_response(user: UserRequest):
                     "description": "Classic Nigerian rice dish"
                 },
                 {
+                    "food": "Suya",
+                    "category": "street_food",
+                    "description": "Spicy grilled meat skewers"
+                },
+                {
                     "food": "Akara",
                     "category": "breakfast",
                     "description": "Fried bean cakes"
-                },
-                {
-                    "food": "Yam and Egg",
-                    "category": "breakfast",
-                    "description": "Fried yam with egg sauce"
                 }
             ],
             "ai_explanation": "Fallback mode activated due to service unavailability."
@@ -56,13 +86,17 @@ def fallback_response(user: UserRequest):
     }
 
 
+# -----------------------
+# ROUTE
+# -----------------------
+
 @router.post("/recommend")
 def recommend(user: UserRequest):
 
     prompt = f"""
-You are a Nigerian food recommendation AI agent.
+You are a Nigerian food recommendation AI.
 
-Return STRICT JSON ONLY.
+Return ONLY valid JSON.
 
 User:
 - Mood: {user.mood}
@@ -79,7 +113,7 @@ Format:
       "description": ""
     }}
   ],
-  "ai_explanation": "",
+  "ai_explanation": ""
 }}
 """
 
@@ -87,17 +121,24 @@ Format:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a structured recommendation engine."},
+                {
+                    "role": "system",
+                    "content": "You are a strict JSON generator. Output ONLY valid JSON. No markdown. No extra text."
+                },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7
-
+            temperature=0.2
         )
 
         content = response.choices[0].message.content.strip()
 
         # SAFE JSON PARSE
-        data = json.loads(content)
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+
+        if not match:
+            return fallback_response(user)
+
+        data = json.loads(match.group())
 
         return {
             "status": "success",
@@ -105,5 +146,4 @@ Format:
         }
 
     except Exception:
-        # NEVER expose raw error to user
         return fallback_response(user)
