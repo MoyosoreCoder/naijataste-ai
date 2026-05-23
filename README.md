@@ -1,14 +1,11 @@
----
-title: Naijataste Ai
-emoji: 🏢
-colorFrom: pink
+title: NaijaTaste AI 🍲
+emoji: 🍲
+colorFrom: green
 colorTo: yellow
 sdk: docker
-pinned: false
-short_description: This project focused on food recommendation and review
+app_port: 7860
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
 # NaijaTaste AI
 
