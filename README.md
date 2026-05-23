@@ -48,7 +48,7 @@ FastAPI handles:
 ### Logic Layer
 - Rule-based sentiment analysis
 - User preference modeling
-- Fallback logic for LLM failures
+- Added logic for LLM
 
 ### Data Layer
 - Amazon Reviews dataset used for behavioral simulation
