@@ -10,11 +10,11 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy entire project
+# Copy project
 COPY . .
 
-# Expose FastAPI port
+# Expose port (HF uses 7860)
 EXPOSE 7860
 
-# Start app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Start app (IMPORTANT FIX)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

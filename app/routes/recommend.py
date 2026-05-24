@@ -10,16 +10,9 @@ load_dotenv()
 
 router = APIRouter()
 
-# =========================
-# GROQ CLIENT
-# =========================
-client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1"
-)
 
 # =========================
-# REQUEST MODEL (SAFE)
+# REQUEST MODEL
 # =========================
 class UserRequest(BaseModel):
     mood: str
@@ -56,9 +49,24 @@ def fallback_response(user: UserRequest):
                     "description": "Fried bean cakes"
                 }
             ],
-            "ai_explanation": "Fallback mode activated due to API or parsing failure."
+            "ai_explanation": "Fallback mode activated due to missing API key or service failure."
         }
     }
+
+
+# =========================
+# SAFE CLIENT INITIALIZER
+# =========================
+def get_client():
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return None  # prevents app crash
+
+    return OpenAI(
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1"
+    )
 
 
 # =========================
@@ -67,29 +75,24 @@ def fallback_response(user: UserRequest):
 @router.post("/recommend")
 def recommend(user: UserRequest):
 
-    # If API key missing → immediate fallback
-    if not os.getenv("GROQ_API_KEY"):
+    client = get_client()
+
+    # If no API key → fallback immediately
+    if client is None:
         return fallback_response(user)
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Return ONLY valid JSON. No markdown. No extra text."
-                },
-                {
-                    "role": "user",
-                    "content": f"""
+        prompt = f"""
 You are a Nigerian food recommendation AI.
+
+Return ONLY valid JSON.
 
 User:
 - Mood: {user.mood}
 - Budget: {user.budget}
 - Spice level: {user.spice_level}
 
-Return JSON in this format:
+Format:
 {{
   "reasoning": ["..."],
   "recommendations": [
@@ -102,6 +105,17 @@ Return JSON in this format:
   "ai_explanation": ""
 }}
 """
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You must return ONLY valid JSON. No markdown. No explanation."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
                 }
             ],
             temperature=0.2
@@ -109,10 +123,10 @@ Return JSON in this format:
 
         content = response.choices[0].message.content.strip()
 
-        # SAFE JSON PARSE (NO REGEX)
+        # SAFE JSON PARSING
         try:
             data = json.loads(content)
-        except:
+        except Exception:
             return fallback_response(user)
 
         return {
