@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services.dataset_loader import load_reviews
 import random
+import pandas as pd
+from app.services.dataset_loader import load_reviews
 
 router = APIRouter()
 
@@ -17,22 +18,32 @@ class ReviewRequest(BaseModel):
 @router.post("/review")
 def generate_review(data: ReviewRequest):
 
-    mood = data.user_mood.lower()
-    food = data.food.lower()
-    experience = data.experience.lower()
+    mood = (data.user_mood or "").lower()
+    food = (data.food or "food").lower()
+    experience = (data.experience or "").lower()
 
     budget = (data.budget or "medium").lower()
     personality = (data.personality or "regular").lower()
 
     # =========================
-    # DATASET SAFE LOADING
+    # SAFE DATA LOADING
     # =========================
     try:
         df = load_reviews()
-        df = df.dropna(subset=["Text", "Score"])
 
-        sample = df.sample(1).iloc[0]
-        dataset_rating = int(sample["Score"])
+        if df is None or df.empty:
+            raise ValueError("Empty dataset")
+
+        dataset_rating = 4
+        dataset_style = None
+
+        # safe column check
+        if "Text" in df.columns and "Score" in df.columns:
+            df_clean = df.dropna(subset=["Text", "Score"])
+
+            if len(df_clean) > 0:
+                sample = df_clean.sample(1).iloc[0]
+                dataset_rating = int(sample["Score"])
 
         style_phrases = [
             "very satisfying experience",
@@ -44,15 +55,19 @@ def generate_review(data: ReviewRequest):
 
         dataset_style = random.choice(style_phrases)
 
-    except Exception:
+    except Exception as e:
+        print("Review dataset error:", e)
         dataset_rating = 4
         dataset_style = None
 
     # =========================
-    # SENTIMENT RULES
+    # SENTIMENT LOGIC (SAFE)
     # =========================
-    sentiment_positive = experience in ["nice", "good", "tasty", "delicious"]
-    sentiment_negative = experience in ["bad", "terrible", "cold", "burnt"]
+    positive_words = ["nice", "good", "tasty", "delicious", "great", "amazing"]
+    negative_words = ["bad", "terrible", "cold", "burnt", "awful", "horrible"]
+
+    sentiment_positive = any(w in experience for w in positive_words)
+    sentiment_negative = any(w in experience for w in negative_words)
 
     rating = dataset_rating
 
@@ -69,6 +84,7 @@ def generate_review(data: ReviewRequest):
         review = f"The {food} was okay, but mood affected enjoyment."
 
     else:
+        rating = 4
         review = f"The {food} was decent overall."
 
     # =========================
@@ -81,7 +97,7 @@ def generate_review(data: ReviewRequest):
         review += " As a foodie, this stood out nicely."
 
     # =========================
-    # SAFE DATASET STYLE INJECTION
+    # DATASET STYLE INJECTION
     # =========================
     if dataset_style and sentiment_positive:
         review += f" {dataset_style}."
@@ -97,7 +113,10 @@ def generate_review(data: ReviewRequest):
     ])
 
     return {
-        "food": data.food.title(),
-        "rating": rating,
-        "review": review
+        "status": "success",
+        "data": {
+            "food": data.food.title(),
+            "rating": rating,
+            "review": review
+        }
     }

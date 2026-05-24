@@ -1,60 +1,35 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from enum import Enum
 from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import json
-import re
 
 load_dotenv()
 
 router = APIRouter()
 
-# Groq / OpenAI client
+# =========================
+# GROQ CLIENT
+# =========================
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
 )
 
-# -----------------------
-# ENUM DEFINITIONS
-# -----------------------
-
-class Mood(str, Enum):
-    happy = "happy"
-    sad = "sad"
-    neutral = "neutral"
-    excited = "excited"
-
-
-class Budget(str, Enum):
-    low = "low"
-    medium = "medium"
-    high = "high"
-
-
-class SpiceLevel(str, Enum):
-    mild = "mild"
-    medium = "medium"
-    spicy = "spicy"
-
-
-# -----------------------
-# REQUEST MODEL
-# -----------------------
-
+# =========================
+# REQUEST MODEL (SAFE)
+# =========================
 class UserRequest(BaseModel):
-    mood: Mood
-    budget: Budget
-    spice_level: Optional[SpiceLevel] = None
+    mood: str
+    budget: str
+    spice_level: Optional[str] = None
 
 
-# -----------------------
-# FALLBACK
-# -----------------------
-
+# =========================
+# FALLBACK RESPONSE
+# =========================
 def fallback_response(user: UserRequest):
     return {
         "status": "success",
@@ -81,29 +56,40 @@ def fallback_response(user: UserRequest):
                     "description": "Fried bean cakes"
                 }
             ],
-            "ai_explanation": "Fallback mode activated due to service unavailability."
+            "ai_explanation": "Fallback mode activated due to API or parsing failure."
         }
     }
 
 
-# -----------------------
+# =========================
 # ROUTE
-# -----------------------
-
+# =========================
 @router.post("/recommend")
 def recommend(user: UserRequest):
 
-    prompt = f"""
-You are a Nigerian food recommendation AI.
+    # If API key missing → immediate fallback
+    if not os.getenv("GROQ_API_KEY"):
+        return fallback_response(user)
 
-Return ONLY valid JSON.
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Return ONLY valid JSON. No markdown. No extra text."
+                },
+                {
+                    "role": "user",
+                    "content": f"""
+You are a Nigerian food recommendation AI.
 
 User:
 - Mood: {user.mood}
 - Budget: {user.budget}
-- Spice: {user.spice_level}
+- Spice level: {user.spice_level}
 
-Format:
+Return JSON in this format:
 {{
   "reasoning": ["..."],
   "recommendations": [
@@ -116,34 +102,24 @@ Format:
   "ai_explanation": ""
 }}
 """
-
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a strict JSON generator. Output ONLY valid JSON. No markdown. No extra text."
-                },
-                {"role": "user", "content": prompt}
+                }
             ],
             temperature=0.2
         )
 
         content = response.choices[0].message.content.strip()
 
-        # SAFE JSON PARSE
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-
-        if not match:
+        # SAFE JSON PARSE (NO REGEX)
+        try:
+            data = json.loads(content)
+        except:
             return fallback_response(user)
-
-        data = json.loads(match.group())
 
         return {
             "status": "success",
             "data": data
         }
 
-    except Exception:
+    except Exception as e:
+        print("Recommend API Error:", e)
         return fallback_response(user)
