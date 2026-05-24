@@ -23,6 +23,10 @@ app.add_middleware(
 app.include_router(recommend_router)
 app.include_router(review_router)
 
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
 @app.get("/")
 def home():
     return {"message": "NaijaTaste AI is running"}
