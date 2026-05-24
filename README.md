@@ -137,7 +137,7 @@ docker build -t naijataste-ai .
 docker run -p 8000:8000 naijataste-ai
 Notes
 Implements intelligent fallback reasoning system to ensure consistent recommendations even without LLM availability.
-Combines dataset-driven logic with rule-based reasoning
+Combines the dataset-driven logic with rule-based reasoning
 Designed as a structured AI system for food behavior modeling
 
 ## Docker Deployment
