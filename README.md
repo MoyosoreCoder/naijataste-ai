@@ -1,3 +1,15 @@
+---
+title: Naijataste Ai
+emoji: 🏢
+colorFrom: pink
+colorTo: yellow
+sdk: docker
+pinned: false
+short_description: This project focused on food recommendation and review
+---
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+
 # NaijaTaste AI
 
 NaijaTaste AI is an intelligent food recommendation and review simulation system that models user behavior, generates contextual Nigerian food reviews, and delivers personalized food recommendations using rule-based logic and LLM-assisted reasoning.
