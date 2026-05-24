@@ -13,7 +13,7 @@ router = APIRouter()
 # REQUEST MODEL
 # =========================
 class UserRequest(BaseModel):
-    mood: str
+    mood: str 
     budget: str
     spice_level: Optional[str] = None
 
@@ -120,7 +120,7 @@ Format:
 """
 
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama3-8b-8192",
             messages=[
                 {
                     "role": "system",
@@ -147,5 +147,5 @@ Format:
         }
 
     except Exception as e:
-        print("Recommend API Error:", e)
+        print("🔥 GROQ ERROR:", repr(e))
         return fallback_response(user)
