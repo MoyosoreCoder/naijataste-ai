@@ -1,16 +1,17 @@
 import pandas as pd
 import os
 
-
 # =========================
-# LOAD DATASET
+# SAFE DATA LOADING (HF SAFE)
 # =========================
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+DATA_PATH = os.path.join("data", "food.csv")
 
-DATA_PATH = os.path.join(BASE_DIR, "data", "food.csv")
-
-df = pd.read_csv(DATA_PATH)
+try:
+    df = pd.read_csv(DATA_PATH)
+except Exception as e:
+    print("⚠️ Dataset load failed:", e)
+    df = pd.DataFrame(columns=["category", "description"])
 
 
 # =========================
@@ -19,38 +20,57 @@ df = pd.read_csv(DATA_PATH)
 
 def recommend_food(mood: str, budget: str, spice_level: str = None):
 
+    if df.empty:
+        return [
+            {
+                "food": "Jollof Rice",
+                "category": "fallback",
+                "description": "Default recommendation (dataset not loaded)"
+            }
+        ]
+
     filtered = df.copy()
 
-    # mood behavior
-    if mood.lower() == "happy":
+    # =========================
+    # MOOD LOGIC
+    # =========================
+    if mood and mood.lower() == "happy":
         filtered = filtered.sample(min(10, len(filtered)))
 
-    elif mood.lower() == "sad":
+    elif mood and mood.lower() == "sad":
         filtered = filtered.sample(min(5, len(filtered)))
 
-    # budget behavior
-    if budget.lower() == "low":
+
+    # =========================
+    # BUDGET LOGIC
+    # =========================
+    if budget and budget.lower() == "low":
         filtered = filtered[
             filtered["category"].isin(
                 ["snack", "street food", "breakfast"]
             )
         ]
 
-    # spice preference
-    if spice_level and spice_level.lower() == "spicy":
 
+    # =========================
+    # SPICE LOGIC (SAFE)
+    # =========================
+    if spice_level and spice_level.lower() == "spicy":
         filtered = filtered[
-            filtered["description"].str.contains(
-                "spicy",
-                case=False,
-                na=False
-            )
+            filtered["description"]
+            .fillna("")
+            .str.contains("spicy", case=False, na=False)
         ]
 
-    # fallback
+
+    # =========================
+    # FALLBACK HANDLING
+    # =========================
     if filtered.empty:
         filtered = df.sample(min(3, len(df)))
 
-    return filtered.sample(
-        min(3, len(filtered))
-    ).to_dict(orient="records")
+
+    # =========================
+    # FINAL OUTPUT
+    # =========================
+    return filtered.sample(min(3, len(filtered))).to_dict(orient="records")
