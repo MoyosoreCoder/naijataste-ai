@@ -9,55 +9,22 @@ import re
 router = APIRouter()
 
 
+from dotenv import load_dotenv
+load_dotenv()
 # =========================
 # REQUEST MODEL
 # =========================
 class UserRequest(BaseModel):
-    mood: str 
+    mood: str
     budget: str
     spice_level: Optional[str] = None
 
 
 # =========================
-# FALLBACK RESPONSE
-# =========================
-def fallback_response(user: UserRequest):
-    return {
-        "status": "success",
-        "data": {
-            "reasoning": [
-                f"Mood = {user.mood}",
-                f"Budget = {user.budget}",
-                f"Spice preference = {user.spice_level or 'not specified'}"
-            ],
-            "recommendations": [
-                {
-                    "food": "Jollof Rice",
-                    "category": "main",
-                    "description": "Classic Nigerian rice dish"
-                },
-                {
-                    "food": "Suya",
-                    "category": "street_food",
-                    "description": "Spicy grilled meat skewers"
-                },
-                {
-                    "food": "Akara",
-                    "category": "breakfast",
-                    "description": "Fried bean cakes"
-                }
-            ],
-            "ai_explanation": "Fallback mode used (no API or parsing failure)."
-        }
-    }
-
-
-# =========================
-# SAFE CLIENT INITIALIZER
+# CLIENT
 # =========================
 def get_client():
     api_key = os.getenv("GROQ_API_KEY")
-
     if not api_key:
         return None
 
@@ -65,22 +32,6 @@ def get_client():
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1"
     )
-
-
-# =========================
-# SAFE JSON PARSER
-# =========================
-def extract_json(text: str):
-    try:
-        return json.loads(text)
-    except:
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except:
-                return None
-    return None
 
 
 # =========================
@@ -92,54 +43,103 @@ def recommend(user: UserRequest):
     client = get_client()
 
     if client is None:
-        return fallback_response(user)
+        return {
+            "status": "error",
+            "message": "GROQ_API_KEY is missing"
+        }
 
-    try:
-        prompt = f"""
-You are a Nigerian food recommendation AI.
+    spice = user.spice_level or "not specified"
 
-Return ONLY valid JSON.
-
-User:
-- Mood: {user.mood}
-- Budget: {user.budget}
-- Spice level: {user.spice_level or "not specified"}
+    prompt = f"""
+Return ONLY valid JSON. No markdown. No extra text.
 
 Format:
 {{
-  "reasoning": ["..."],
+  "reasoning": [
+    "Mood: {user.mood}",
+    "Budget: {user.budget}",
+    "Spice: {spice}"
+  ],
   "recommendations": [
     {{
-      "food": "",
-      "category": "",
-      "description": ""
+      "food": "string",
+      "category": "string",
+      "description": "string"
     }}
   ],
-  "ai_explanation": ""
+  "ai_explanation": "string"
 }}
+
+User:
+Mood: {user.mood}
+Budget: {user.budget}
+Spice: {spice}
 """
 
+    try:
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
-                    "content": "Return ONLY valid JSON. No markdown. No extra text."
+                    "content": (
+                        "You are a strict JSON generator. "
+                        "Return ONLY valid JSON. No markdown, no explanation."
+                    )
                 },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
+                {"role": "user", "content": prompt}
             ],
-            temperature=0.2
+            temperature=0,
+            max_tokens=500
         )
 
         content = response.choices[0].message.content.strip()
 
-        data = extract_json(content)
+        print("\n🔥 RAW GROQ RESPONSE:\n", content)
 
-        if not data:
-            return fallback_response(user)
+        # =========================
+        # CLEAN RESPONSE
+        # =========================
+        content = re.sub(r"```json|```", "", content).strip()
+
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not match:
+            return {
+                "status": "error",
+                "message": "No valid JSON found in AI response",
+                "raw_output": content
+            }
+
+        clean_json = match.group(0)
+
+        # =========================
+        # PARSE JSON
+        # =========================
+        try:
+            data = json.loads(clean_json)
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": "JSON parsing failed",
+                "error": str(e),
+                "raw_output": clean_json
+            }
+
+        # =========================
+        # VALIDATION
+        # =========================
+        if not isinstance(data, dict):
+            return {
+                "status": "error",
+                "message": "AI response is not a JSON object"
+            }
+
+        if "recommendations" not in data:
+            return {
+                "status": "error",
+                "message": "Missing 'recommendations' field",
+                "data": data
+            }
 
         return {
             "status": "success",
@@ -147,5 +147,10 @@ Format:
         }
 
     except Exception as e:
-        print("🔥 GROQ ERROR:", repr(e))
-        return fallback_response(user)
+        print("❌ SERVER ERROR:", repr(e))
+
+        return {
+            "status": "error",
+            "message": "Server error during AI request",
+            "error": str(e)
+        }
