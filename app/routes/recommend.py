@@ -2,11 +2,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
 from openai import OpenAI
-from dotenv import load_dotenv
 import os
 import json
-
-load_dotenv()
+import re
 
 router = APIRouter()
 
@@ -30,7 +28,7 @@ def fallback_response(user: UserRequest):
             "reasoning": [
                 f"Mood = {user.mood}",
                 f"Budget = {user.budget}",
-                f"Spice preference = {user.spice_level}"
+                f"Spice preference = {user.spice_level or 'not specified'}"
             ],
             "recommendations": [
                 {
@@ -49,7 +47,7 @@ def fallback_response(user: UserRequest):
                     "description": "Fried bean cakes"
                 }
             ],
-            "ai_explanation": "Fallback mode activated due to missing API key or service failure."
+            "ai_explanation": "Fallback mode used (no API or parsing failure)."
         }
     }
 
@@ -61,12 +59,28 @@ def get_client():
     api_key = os.getenv("GROQ_API_KEY")
 
     if not api_key:
-        return None  # prevents app crash
+        return None
 
     return OpenAI(
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1"
     )
+
+
+# =========================
+# SAFE JSON PARSER
+# =========================
+def extract_json(text: str):
+    try:
+        return json.loads(text)
+    except:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except:
+                return None
+    return None
 
 
 # =========================
@@ -77,7 +91,6 @@ def recommend(user: UserRequest):
 
     client = get_client()
 
-    # If no API key → fallback immediately
     if client is None:
         return fallback_response(user)
 
@@ -90,7 +103,7 @@ Return ONLY valid JSON.
 User:
 - Mood: {user.mood}
 - Budget: {user.budget}
-- Spice level: {user.spice_level}
+- Spice level: {user.spice_level or "not specified"}
 
 Format:
 {{
@@ -111,7 +124,7 @@ Format:
             messages=[
                 {
                     "role": "system",
-                    "content": "You must return ONLY valid JSON. No markdown. No explanation."
+                    "content": "Return ONLY valid JSON. No markdown. No extra text."
                 },
                 {
                     "role": "user",
@@ -123,10 +136,9 @@ Format:
 
         content = response.choices[0].message.content.strip()
 
-        # SAFE JSON PARSING
-        try:
-            data = json.loads(content)
-        except Exception:
+        data = extract_json(content)
+
+        if not data:
             return fallback_response(user)
 
         return {
